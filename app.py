@@ -17,12 +17,13 @@ TARGET_SR = 16000
 # --- Safe model loading (Option A fix) ---
 @st.cache_resource
 def load_model_safely():
-    with h5py.File("saved_model/emotion_model.h5", "r") as f:
-        model = load_model(f, compile=False)
+    model = tf.keras.models.load_model("saved_model/emotion_model.keras")
     le = joblib.load("saved_model/label_encoder.pkl")
     return model, le
 
 model, le = load_model_safely()
+
+
 
 # --- Feature Extraction ---
 def extract_features(audio_bytes):
