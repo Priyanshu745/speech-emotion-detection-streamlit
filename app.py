@@ -17,13 +17,23 @@ TARGET_SR = 16000
 # --- Safe model loading (Option A fix) ---
 @st.cache_resource
 def load_model_safely():
-    model = tf.keras.models.load_model(
-        "saved_model/emotion_model.keras",
-        compile=False,
-        safe_mode=False
-    )
-    le = joblib.load("saved_model/label_encoder.pkl")
-    return model, le
+    try:
+        model = tf.keras.models.load_model(
+            "saved_model/emotion_model.keras",
+            compile=False,
+            safe_mode=False
+        )
+        le = joblib.load("saved_model/label_encoder.pkl")
+        return model, le, None
+    except Exception as e:
+        return None, None, str(e)
+
+model, le, load_error = load_model_safely()
+
+if load_error:
+    st.error("❌ Model failed to load")
+    st.code(load_error)
+    st.stop()
 
 
 
