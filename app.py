@@ -1,4 +1,12 @@
 import streamlit as st
+
+# ✅ MUST BE FIRST STREAMLIT COMMAND
+st.set_page_config(
+    page_title="Speech Emotion Recognizer",
+    page_icon="🎙️"
+)
+
+# --- imports ---
 import numpy as np
 import librosa
 import librosa.display
@@ -21,7 +29,6 @@ def load_model_safely():
         model_path = "saved_model/emotion_model_tf.keras"
         encoder_path = "saved_model/label_encoder.pkl"
 
-        # Check files exist
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found: {model_path}")
         if not os.path.exists(encoder_path):
@@ -29,8 +36,7 @@ def load_model_safely():
 
         model = tf.keras.models.load_model(
             model_path,
-            compile=False,
-            safe_mode=False
+            compile=False
         )
 
         le = joblib.load(encoder_path)
@@ -41,9 +47,9 @@ def load_model_safely():
         return None, None, traceback.format_exc()
 
 
+# ✅ Load after config
 model, le, load_error = load_model_safely()
 
-# --- Show real error ---
 if load_error:
     st.error("❌ Model failed to load")
     st.code(load_error)
@@ -87,7 +93,6 @@ def plot_spectrogram(y, sr):
     st.pyplot(fig)
 
 # --- UI ---
-st.set_page_config(page_title="Speech Emotion Recognizer", page_icon="🎙️")
 st.title("🎙️ Speech Emotion Detection")
 st.write("Upload a `.wav` file to detect the emotion.")
 
