@@ -6,54 +6,68 @@ import tensorflow as tf
 import joblib
 import matplotlib.pyplot as plt
 from io import BytesIO
-from tensorflow.keras.models import load_model
-import h5py
+import os
+import traceback
 
-# --- Constants (must match training) ---
+# --- Constants ---
 N_MFCC = 40
 MAX_LEN = 174
 TARGET_SR = 16000
 
-# --- Safe model loading (Option A fix) ---
+# --- Safe model loading ---
 @st.cache_resource
 def load_model_safely():
     try:
+        model_path = "saved_model/emotion_model.keras"
+        encoder_path = "saved_model/label_encoder.pkl"
+
+        # Check files exist
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        if not os.path.exists(encoder_path):
+            raise FileNotFoundError(f"Encoder file not found: {encoder_path}")
+
         model = tf.keras.models.load_model(
-            "saved_model/emotion_model.keras",
+            model_path,
             compile=False,
             safe_mode=False
         )
-        le = joblib.load("saved_model/label_encoder.pkl")
+
+        le = joblib.load(encoder_path)
+
         return model, le, None
-    except Exception as e:
-        return None, None, str(e)
+
+    except Exception:
+        return None, None, traceback.format_exc()
+
 
 model, le, load_error = load_model_safely()
 
+# --- Show real error ---
 if load_error:
     st.error("❌ Model failed to load")
     st.code(load_error)
     st.stop()
 
-
-
 # --- Feature Extraction ---
 def extract_features(audio_bytes):
-    y, sr = librosa.load(BytesIO(audio_bytes), sr=TARGET_SR)
+    try:
+        y, sr = librosa.load(BytesIO(audio_bytes), sr=TARGET_SR)
 
-    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC)
+        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC)
 
-    # Pad or truncate
-    if mfccs.shape[1] < MAX_LEN:
-        pad_width = MAX_LEN - mfccs.shape[1]
-        mfccs = np.pad(mfccs, ((0, 0), (0, pad_width)), mode='constant')
-    else:
-        mfccs = mfccs[:, :MAX_LEN]
+        if mfccs.shape[1] < MAX_LEN:
+            pad_width = MAX_LEN - mfccs.shape[1]
+            mfccs = np.pad(mfccs, ((0, 0), (0, pad_width)), mode='constant')
+        else:
+            mfccs = mfccs[:, :MAX_LEN]
 
-    # Shape: (1, 174, 40, 1)
-    features = mfccs.T[np.newaxis, ..., np.newaxis]
+        features = mfccs.T[np.newaxis, ..., np.newaxis]
 
-    return features, y, sr
+        return features, y, sr, None
+
+    except Exception:
+        return None, None, None, traceback.format_exc()
 
 # --- Plot waveform ---
 def plot_waveform(y, sr):
@@ -68,7 +82,7 @@ def plot_spectrogram(y, sr):
     S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
     S_dB = librosa.power_to_db(S, ref=np.max)
     img = librosa.display.specshow(S_dB, sr=sr, x_axis='time', y_axis='mel', ax=ax)
-    fig.colorbar(img, ax=ax, format="%+2.0f dB")
+    fig.colorbar(img, ax=ax)
     ax.set_title("Mel Spectrogram")
     st.pyplot(fig)
 
@@ -83,28 +97,25 @@ if uploaded_file is not None:
     st.audio(uploaded_file, format='audio/wav')
 
     try:
-        # --- Read once (important fix) ---
         audio_bytes = uploaded_file.read()
 
-        # --- Feature extraction ---
-        features, y, sr = extract_features(audio_bytes)
+        features, y, sr, error = extract_features(audio_bytes)
 
-        # Debug shape (optional)
-        # st.write("Feature shape:", features.shape)
+        if error:
+            st.error("⚠️ Feature extraction failed")
+            st.code(error)
+            st.stop()
 
-        # --- Visualization ---
         st.subheader("📊 Audio Visualization")
         plot_waveform(y, sr)
         plot_spectrogram(y, sr)
 
-        # --- Prediction ---
         prediction = model.predict(features, verbose=0)
 
         predicted_index = np.argmax(prediction)
         predicted_label = le.inverse_transform([predicted_index])[0]
         confidence = prediction[0][predicted_index]
 
-        # --- Results ---
         st.subheader("🎯 Prediction Results")
         st.success(f"🧠 Emotion: {predicted_label.upper()} ({confidence:.2%})")
 
@@ -112,5 +123,6 @@ if uploaded_file is not None:
         for label, prob in zip(le.classes_, prediction[0]):
             st.write(f"- {label}: {prob:.4f}")
 
-    except Exception as e:
-        st.error(f"⚠️ Error processing audio:\n\n{e}")
+    except Exception:
+        st.error("⚠️ Error processing audio")
+        st.code(traceback.format_exc())
