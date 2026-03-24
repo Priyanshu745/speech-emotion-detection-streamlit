@@ -18,7 +18,7 @@ TARGET_SR = 16000
 @st.cache_resource
 def load_model_safely():
     try:
-        model_path = "saved_model/emotion_model.keras"
+        model_path = "saved_model/emotion_model_tf.keras"
         encoder_path = "saved_model/label_encoder.pkl"
 
         # Check files exist
