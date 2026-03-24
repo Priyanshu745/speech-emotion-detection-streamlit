@@ -122,7 +122,7 @@ if uploaded_file is not None:
         confidence = prediction[0][predicted_index]
 
         st.subheader("🎯 Prediction Results")
-        st.success(f"🧠 Emotion: {predicted_label.upper()} ({confidence:.2%})")
+        st.success(f"🧠 Emotion: {predicted_label.upper()}")
 
         st.markdown("#### 🔎 Class Probabilities:")
         for label, prob in zip(le.classes_, prediction[0]):
